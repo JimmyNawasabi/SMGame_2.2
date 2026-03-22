@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Gilded Cage: Legacy Edition</title>
+    <style>
+        :root {
+            --gold: #d4af37;
+            --velvet: #4b0082;
+            --deep-grey: #1a1a1a;
+            --soft-white: #e0e0e0;
+            --accent-red: #8b0000;
+            --charcoal: #2b2b2b;
+        }
+
+        body {
+            background-color: var(--deep-grey);
+            color: var(--soft-white);
+            font-family: 'Georgia', serif;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+// New Global State
+const sessionState = {
+    vetosAvailable: 3, 
+    isPaused: false,
+    safetyStatus: 'green', // 'green', 'yellow', or 'red'
+    settings: {
+        soundEnabled: true,
+        volume: 0.5
+    }
+};
+        #game-container {
+            width: 95%;
+            max-width: 1000px;
+            background: linear-gradient(135deg, var(--charcoal) 0%, #111 100%);
+            border: 2px solid var(--gold);
+            padding: 30px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.9);
+            border-radius: 8px;
+        }
+
+        h1, h2, h3 { color: var(--gold); text-align: center; text-transform: uppercase; letter-spacing: 3px; margin-top: 0; }
+        
+        .section { display: none; }
+        .active { display: block; }
+
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: var(--gold); font-variant: small-caps; }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            background: #222;
+            border: 1px solid var(--gold);
+            color: white;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            background: var(--gold);
+            color: #000;
+            padding: 15px 25px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            display: block;
+            margin: 10px auto;
+            width: 250px;
+            transition: all 0.3s;
+        }
+
+        .btn:hover { background: #fff; box-shadow: 0 0 20px var(--gold); }
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .item-list {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #444;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .inventory-item {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.05);
+            margin: 5px 0;
+            padding: 5px 10px;
+            border-radius: 3px;
+        }
+
+        .delete-btn { color: var(--accent-red); cursor: pointer; font-weight: bold; }
+
+        .task-box {
+            background: rgba(75, 0, 130, 0.2);
+            border-left: 5px solid var(--gold);
+            padding: 25px;
+            font-size: 1.2rem;
+            line-height: 1.6;
+            margin: 20px 0;
+        }
+
+        .timer { font-size: 4rem; text-align: center; color: var(--gold); margin: 20px 0; font-family: monospace; }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--gold);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .save-banner {
+            font-size: 0.7rem;
+            text-align: center;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        input[type="checkbox"] { width: auto; margin-right: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="save-banner">Progress Auto-Saved to Browser Storage</div>
+
+    <div id="setup-page" class="section active">
+        <h1>The Gilded Cage</h1>
+        <div class="input-group">
+            <label>Player 1</label>
+            <input type="text" id="p1-name" placeholder="Name">
+            <select id="p1-gender">
+                <option value="male">Penis Owner</option>
+                <option value="female">Vulva Owner</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>Player 2</label>
+            <input type="text" id="p2-name" placeholder="Name">
+            <select id="p2-gender">
+                <option value="male">Penis Owner</option>
+                <option value="female">Vulva Owner</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>Total Rounds</label>
+            <input type="number" id="max-rounds" value="15">
+        </div>
+        <button class="btn" onclick="goToInventory()">Next: Configure Kit</button>
+    </div>
+
+    <div id="inventory-page" class="section">
+        <h2>Your Arsenal</h2>
+        <div id="inventory-container" class="inventory-grid"></div>
+        <button class="btn" onclick="startGame()" style="margin-top: 30px;">Lock Arsenal & Start</button>
+    </div>
+
+    <div id="game-page" class="section">
+        <div class="stats-bar">
+            <div id="round-display">Round: 1</div>
+            <div id="score-display">Scores</div>
+        </div>
+        <div id="role-display" style="text-align: center; color: var(--gold); margin-bottom: 10px;"></div>
+        
+        <div id="master-choice-ui">
+            <h3>Master's Choice</h3>
+            <div id="realm-toggles" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;"></div>
+            <button class="btn" onclick="drawTask()">Draw Task</button>
+        </div>
+
+        <div id="task-ui" style="display:none;">
+            <div class="task-box" id="task-desc"></div>
+            <div class="timer" id="timer-display">00:00</div>
+            <div id="action-controls">
+                <button class="btn" id="start-btn" onclick="startTimer()">Start Timer</button>
+                <div id="resolve-controls" style="display:none; gap: 10px; justify-content: center; margin-top: 15px;">
+                    <button class="btn" onclick="resolveTask(true)" style="background:green; color:white; width: 140px; margin:0;">Success</button>
+                    <button class="btn" onclick="resolveTask(false)" style="background:var(--accent-red); color:white; width: 140px; margin:0;">Failure</button>
+                </div>
+            </div>
+            <button class="btn" style="background:#000; color:red; width: 100%; margin-top: 30px; border: 1px solid red;" onclick="triggerSafeword()">SAFEWORD</button>
+        </div>
+    </div>
+
+    <div id="final-page" class="section">
+        <h1 id="winner-announcement">VICTOR</h1>
+        <h3 style="color:white;">The Ultimate Prize</h3>
+        <div class="task-box" id="grand-prize-desc"></div>
+        <p style="text-align:center; font-weight:bold; color:var(--gold);">Winner: Choose your submissive now. This prize involves an eventual climax for both of you.</p>
+        <button class="btn" onclick="resetGame()">End Session & Save Settings</button>
+    </div>
+</div>
+
+<audio id="snd-whip" src="https://actions.google.com/sounds/v1/foley/whip_crack.ogg"></audio>
+
+<script>
+const catNames = { Impact: "Impact Tools", Sensation: "Sensory Items", Restraints: "Restraints", Gags: "Gags", Blindfolds: "Blindfolds", Toys: "Toys" };
+const realmNames = {
+    shibari: "Art of Cord",
+    escape: "Great Escape",
+    tease: "The Brink",
+    punish: "Justice & Mercy",
+    dare: "The Reckoning",
+    soft: "Languid Lust",
+    sensory: "Overload",
+    inner: "Inner Restraint"
+};
+
+let state = {
+    p1: { name: "", gender: "", score: 0 },
+    p2: { name: "", gender: "", score: 0 },
+    masterIdx: 0,
+    subIdx: 1,
+    currentRound: 1,
+    maxRounds: 15,
+    timerInterval: null,
+    inventory: {
+        Impact: ["Leather Paddle", "Flogger"],
+        Sensation: ["Ice Cubes", "Warm Wax"],
+        Restraints: ["Rope", "Cuffs"],
+        Gags: ["Ball Gag"],
+        Blindfolds: ["Sleep Mask"],
+        Toys: ["Vibrator"]
+    }
+};
+
+const grandPrizes = [
+    { title: "The Gilded Eternity (Overnight)", text: "The submissive is placed in full-body **[Restraints]** and fitted with **[Blindfolds]**. They are to remain bound until sunrise. The Master will periodically check on them using **[Sensation]**. At dawn, the submissive is released and given an intense session with **[Toys]** until both players reach a synchronised climax." },
+     { title: "The Big Day Out", text: "The submissive is bound, gagged and blinfolded and the. taken for a walk oitside tonthe nearest park, the master is to take then to a secluded area and bring them to climax. they are then to be taken back home where they are left bound, vlindfolded and gagged and ise at the discretion of the Master for the rest of the night, they can be released in the morning after they the Master wakes uo." },
+   title: "The Gilded Eternity (Overnight)",
+        text: "The submissive is placed in full-body **[Restraints]** and fitted with **[Blindfolds]**. They are to remain bound until sunrise. The Master will periodically check on them using **[Sensation]**. At dawn, the submissive is released and given an intense session with **[Toys]** until both players reach a synchronised climax." 
+    },
+    { 
+        title: "The Sensory Void",
+        text: "The submissive is bound in total darkness. For 90 minutes, the Master uses **[Sensation]** and **[Impact]** to keep the submissive disoriented. Finally, the submissive is unblindfolded and rewarded with a face-to-face climax under the Master's absolute control." 
+    },
+    { 
+        title: "The Gauntlet of Lust",
+        text: "The submissive is placed in a spread-eagle stasis. The Master uses the entire **[Impact]** arsenal, followed by cooling **[Sensation]**. This cycle repeats. Finally, the Master uses **[Toys]** to bring the submissive to 5 edges before allowing a messy release." 
+    },
+    { 
+        title: "The Master's Furniture",
+        text: "The submissive is bound and fitted with **[Gags]**, used as a footrest or seat for the Master for 2 hours. Afterwards, they are placed on their back and teased with **[Toys]** until they beg for the climax the Master then provides." 
+    },
+    { 
+        title: "The Ice & Fire Marathon",
+        text: "A 60-minute trial alternating between **[Sensation]** (Ice) and **[Sensation]** (Hot Wax). The Master will use oral play to keep the submissive at a constant 'high simmer' without ever peaking, until the final power-climax at the finish." 
+    },
+    { 
+        title: "The Sound of Submission",
+        text: "The submissive is bound and blindfolded. The Master removes the **[Gags]** only to demand erotic confessions. Success leads to **[Toys]**, failure leads to **[Impact]**. This ends in a deep, guided climax." 
+    },
+    { 
+        title: "The Puppet Master",
+        text: "Using a long **[Restraints]** line, the Master controls the submissive's limbs from across the room. After 30 minutes of 'dancing', the submissive is pulled into the Master's lap for a forced-orgasm session." 
+    },
+    { 
+        title: "The Submissive's Vigil (Overnight)",
+        text: "The submissive is bound to the bedposts with **[Restraints]**. The Master will apply a vibration from **[Toys]** on a low, constant setting. In the morning, the session concludes with a high-intensity release." 
+    },
+    { 
+        title: "The Heavy Burden",
+        text: "The submissive is heavily bound and weighted down. They are left in darkness for 1 hour. Upon return, the Master subjects them to a 'Blitz' of **[Impact]** and **[Toys]**, commanding the climax only when the submissive is completely undone." 
+    },
+    { 
+        title: "The Coronation of Flesh",
+        text: "The submissive is bound and sensitized with **[Sensation]** for 1 hour. After the body is fully primed, the Master uses **[Toys]** and oral stimulation, ensuring both players reach climax together." 
+    }
+    { title: "The Sensory Void", text: "The submissive is bound in total darkness. For 90 minutes, the Master uses **[Sensation]** and **[Impact]** to keep the submissive disoriented. Finally, the submissive is unblindfolded and rewarded with a face-to-face climax under the Master's absolute control." },
+    { title: "The Gauntlet of Lust", text: "The submissive is placed in a spread-eagle stasis. The Master uses the entire **[Impact]** arsenal, followed by cooling **[Sensation]**. This cycle repeats. Finally, the Master uses **[Toys]** to bring the submissive to 5 edges before allowing a messy release." }
+];
+
+const taskDatabase = {
+    shibari: [
+        { text: "Master, tie the sub’s wrists to their ankles in a tight hogtie using **[Restraints]**. Apply **[Gags]**.", time: 420 },
+        { text: "Bind the submissive's arms in a box tie. Apply **[Blindfolds]**.", time: 480 },
+        { text: "The Traditional Box: Master, tie the sub's arms in a 'Takate Kote' (box tie) using **[Restraints]**. Use a friction lock at the center of the spine. Success: Submissive must sit perfectly upright with shoulders pulled back.", time: 480 },
+        { text: "The Prayer Binding: Master, bind the sub's hands in a 'prayer' position in front. Use **[Restraints]** to loop from the wrists, over the neck, and back to the waist. Success: Submissive must keep their hands at chin level.", time: 360 },
+        { text: "The Winged Victory: Master, tie the sub's elbows together behind the back. Use **[Restraints]** to create a 'harness' across the chest. Success: Submissive must breathe deeply and rhythmically without the chest line tightening painfully.", time: 420 },
+        { text: "The Crossover Corset: Master, wrap **[Restraints]** around the torso in a diamond pattern. Tighten with every exhale. Success: Submissive must remain standing as a 'statue' while Master admires the pattern.", time: 540 },
+        { text: "The Reverse Prayer: Master, bind the sub's hands behind their back, palms together, fingers pointing up. Success: Submissive must stay in this high-tension stretch without their hands slipping down.", time: 300 },
+        { text: "The Neck-to-Waist Line: Master, tie a collar loop with **[Restraints]** and run the line down to a waist cinch. Success: Submissive must walk in a circle around the Master without the line pulling taut.", time: 240 },
+        { text: "The Triple Diamond: Master, create three distinct diamond shapes on the sub's back using **[Restraints]**. Success: Submissive must count the number of times the rope crosses their spine.", time: 360 },
+        { text: "The Bound Hug: Master, tie the sub's arms so they are hugging themselves tightly. Use **[Restraints]** to lock the wrists to opposite elbows. Success: Submissive must stay 'locked' in this self-embrace.", time: 420 },
+        { text: "The Elbow Lock: Master, bind only the elbows together behind the back, leaving the wrists free. Success: Submissive must use their free hands to serve the Master a drink or object.", time: 300 },
+        { text: "The Shoulder Shrug: Master, tie a heavy coil of **[Restraints]** around the sub's shoulders. Success: Submissive must maintain a shrugging posture to keep the coil from falling to their waist.", time: 180 },
+        { text: "The Mermaid Tail: Master, bind the sub's legs together from ankles to mid-thigh using a continuous spiral of **[Restraints]**. Success: Submissive must hop 5 times without losing balance.", time: 300 },
+        { text: "The Lotus Lock: Master, tie the sub in a cross-legged position. Use **[Restraints]** to bind the feet to the opposite thighs. Success: Submissive must meditate in silence.", time: 600 },
+        { text: "The High Kneel: Master, tie the sub's ankles to their own glutes while they are kneeling. Success: Submissive must remain upright on their knees, hands behind head.", time: 420 },
+        { text: "The Single Leg Suspension: Master, tie one leg in a 'Karada' (body) wrap and lift the foot 6 inches off the floor using **[Restraints]**. Success: Submissive must balance on one leg.", time: 240 },
+        { text: "The Ankle-to-Groin: Master, tie a line from the sub's bound ankles through the crotch to a neck collar. Success: Submissive must walk with 'mincing' steps as the line dictates.", time: 360 },
+        { text: "The Spread-Eagle Floor: Master, tie the sub's limbs to four heavy points (or furniture) using **[Restraints]**. Success: Submissive must stay perfectly flat and still while Master uses **[Sensation]**.", time: 480 },
+        { text: "The Frog Tie: Master, bind the sub's wrists to their ankles while they are in a deep squat. Success: Submissive must remain in this compact shape without tipping over.", time: 300 },
+        { text: "The Picket Fence: Master, tie 5 horizontal lines across the sub's thighs using **[Restraints]**. Success: Submissive must identify which line the Master is touching while wearing **[Blindfolds]**.", time: 240 },
+        { text: "The Toe-to-Wrist: Master, bind the sub's big toes to their wrists behind the back. Success: Submissive must maintain this 'bow' shape on their stomach.", time: 300 },
+        { text: "The Caliper Tie: Master, use **[Restraints]** to bind the legs wide apart. Success: Submissive must maintain the 'V' shape without their leg muscles shaking.", time: 360 },
+        { text: "The Hishigi (Diamond Harness): Master, create a full-body harness from chest to mid-thigh. Success: Submissive must 'present' each side of the harness for inspection.", time: 600 },
+        { text: "The X-Frame: Master, tie a large 'X' across the sub's front and back, connecting at the hips. Success: Submissive must perform 3 slow squats while the rope maintains tension.", time: 300 },
+        { text: "The Rope Dress: Master, use multiple lengths of **[Restraints]** to 'clothe' the submissive in rope patterns. Success: Submissive must pose for a 'photo' (mental or real) for 2 minutes.", time: 480 },
+        { text: "The Spiral Ascending: Master, start at the ankles and wrap a single line of **[Restraints]** all the way to the neck. Success: Submissive must unwind it by spinning in place.", time: 360 },
+        { text: "The Star Pattern: Master, create a 5-point star pattern on the submissive's chest. Success: Submissive must name the 5 points of their own submission.", time: 300 },
+        { text: "The Double Box: Master, tie a box tie on the arms AND a box tie on the legs. Success: Submissive must lie on their side and remain perfectly still.", time: 420 },
+        { text: "The Tethered Bird: Master, bind the sub's wrists together and attach a 4-foot 'leash' using **[Restraints]**. Success: Submissive must follow the Master's lead without the leash going taut.", time: 360 },
+        { text: "The Spine Alignment: Master, tie a vertical line down the spine, knotted at every vertebra. Success: Submissive must describe the feeling of the rope against their bone.", time: 300 },
+        { text: "The Bound Kneel: Master, bind the sub's wrists to their waist and their knees together. Success: Submissive must move from sitting to kneeling 5 times.", time: 240 },
+        { text: "The Rope Corset: Master, lace the sub's torso tightly like a Victorian corset. Success: Submissive must recite a poem or 'The Submissive's Oath' without losing breath.", time: 480 },
+        { text: "The Shadow Play: Master, tie the sub in a complex pose. Success: Submissive must hold the pose while Master uses a light to project their 'rope shadow' on the wall.", time: 360 },
+        { text: "The Sensation Web: Master, weave **[Restraints]** between the sub's fingers and toes. Success: Submissive must move each digit individually as the Master calls them out.", time: 300 },
+        { text: "The Color Contrast: Master, use two different colors/types of **[Restraints]** to create a layered pattern. Success: Submissive must describe the visual beauty of their own 'cage'.", time: 420 },
+        { text: "The Flower Bloom: Master, tie the sub's hands behind their head and spread the fingers like petals. Success: Submissive must stay in this 'blossoming' pose.", time: 240 },
+        { text: "The Geometric Balance: Master, tie a square pattern on the front and a circle on the back. Success: Submissive must identify which shape is being touched by **[Sensation]**.", time: 300 },
+        { text: "The Minimalist: Master, use only one 3-foot length of **[Restraints]** to create the most restrictive tie possible. Success: Submissive must not be able to move their arms.", time: 180 },
+        { text: "The Symmetry Test: Master, tie the left side of the body, then the right. Success: Submissive must judge if the tension is perfectly equal on both sides.", time: 360 },
+        { text: "The Rope Crown: Master, weave a 'crown' or headband out of **[Restraints]** and tie it to a neck collar. Success: Submissive must keep their head perfectly level.", time: 240 },
+        { text: "The Silk Trail: Master, weave **[Sensation]** (silk scarf) into the rope patterns. Success: Submissive must describe the difference between the 'bite' of rope and 'softness' of silk.", time: 300 },
+        { text: "The Master's Signature: Master, tie a unique 'knot' that represents your bond. Success: Submissive must explain what that knot means to them.", time: 180 },
+        { text: "The Suspension Prep: Master, tie a full-body harness and apply upward tension (no lifting). Success: Submissive must stand on tiptoes for 60 seconds to relieve the pressure.", time: 300 },
+        { text: "The Creaking Rope: Master, apply **[Restraints]** so tightly that they 'creak' when the sub moves. Success: Submissive must move until they produce 10 'creaks'.", time: 240 },
+        { text: "The Breath-Controlled Tie: Master, only tighten the rope when the submissive exhales. Success: Submissive must maintain calm, shallow breathing for the duration.", time: 480 },
+        { text: "The Pulse Tie: Master, tie **[Restraints]** around the wrists just tight enough to feel the pulse. Success: Submissive must remain still until the Master feels the heart rate drop.", time: 300 },
+        { text: "The Heavy Limbs: Master, tie small weights (or extra rope) to the sub's bound wrists. Success: Submissive must hold their arms out horizontally.", time: 180 },
+        { text: "The Friction Burn: Master, run a length of rope quickly through a friction lock near the sub's skin. Success: Submissive must not flinch from the heat/noise.", time: 120 },
+        { text: "The Total Immobility: Master, bind the sub from neck to toe until they are a 'mummy'. Success: Submissive must be carried or tilted by the Master without resisting.", time: 600 },
+        { text: "The One-Knot Wonder: Master, tie the sub using one continuous line and a single final knot. Success: Submissive must guess where that final knot is while blindfolded.", time: 300 },
+        { text: "The Rhythmic Snap: Master, snap the excess rope against the bound sub's skin rhythmically. Success: Submissive must hum in time with the snaps.", time: 240 },
+        { text: "The Masterpiece: Master, take 10 minutes to create your best work. Success: Submissive must remain a 'living statue' while the Master admires them from all angles.", time: 600 }
+    ],
+    sensory: [
+        { text: "The Pinball Effect: Master, apply **[Blindfolds]**. Use **[Impact]**, **[Sensation]**, and **[Toys]** in rapid, random succession on different body parts. Success: Submissive must hum once for a soft touch and twice for a hard strike.", time: 300 },
+        { text: "Thermal Whiplash: Master, use **[Sensation]** (ice) and **[Sensation]** (warm breath/wax) simultaneously on opposite sides of the body. Success: Submissive must identify which side is 'warm' without hesitation.", time: 240 },
+        { text: "The Vibrating Static: Master, place **[Toys]** on the neck while using **[Impact]** (lightly) on the feet. Success: Submissive must recite the alphabet backward while both sensations are active.", time: 180 },
+        { text: "The Weighted Blackout: Apply **[Blindfolds]** and **[Gags]**. Master, pile several lengths of **[Restraints]** and the kit on the submissive's chest. Success: Maintain calm, deep breathing under the weight.", time: 360 },
+        { text: "The Rhythmic Blur: Master, tap a fast rhythm with **[Impact]** on one thigh while stroking the other with **[Sensation]** (fur/silk). Success: Submissive must match their breathing to the fast rhythm, not the slow stroke.", time: 240 },
+        { text: "The Three-Point Overload: Master uses **[Toys]** on the genitals, **[Sensation]** on the neck, and **[Impact]** on the glutes at the same time. Success: No screaming or pulling away.", time: 180 },
+        { text: "The Sensation Labyrinth: Master, trace a complex 'map' on the sub's back using **[Sensation]** (ice) while **[Toys]** are active on the lower back. Success: Submissive must 'draw' the map in the air with their hand.", time: 300 },
+        { text: "The Static Storm: Use a loud white-noise machine or music. Master uses **[Impact]** rhythmically. Success: Submissive must 'find' the Master's hand in the dark/noise whenever the strikes stop.", time: 420 },
+        { text: "The Friction Cage: Master, wrap **[Restraints]** around the sub's torso and pull them back and forth quickly to create friction heat while using **[Toys]**. Success: Stay focused on the Master's voice.", time: 300 },
+        { text: "The Drip & Pulse: Master, drip **[Sensation]** (wax) onto the stomach while **[Toys]** are at maximum power. Success: Submissive must name 5 things they feel in order of intensity.", time: 240 },
+        { text: "The Sensory Void: Apply **[Blindfolds]**, **[Gags]**, and earplugs. Master, do nothing for 2 minutes, then deliver one heavy strike of **[Impact]**. Success: No jumping or 'shock' reaction.", time: 300 },
+        { text: "The Compass: Apply **[Blindfolds]**. Master moves around the submissive, using **[Sensation]** (blowing air) from different angles. Success: Submissive must turn their head to face the source every time.", time: 240 },
+        { text: "The Tingle Trial: Master, apply **[Sensation]** (ice) to the lips and **[Toys]** to the palms. Success: Submissive must hold a mouthful of water without swallowing or spilling.", time: 180 },
+        { text: "The Pattern Recall: Master, tap 3 different spots with **[Impact]**, then 3 with **[Sensation]**. Success: Submissive must name the order of locations perfectly.", time: 240 },
+        { text: "The Constant Hum: Master, hold **[Toys]** against the sub's forehead or jawbone (vibrating the skull). Success: Submissive must count out loud to 100 without their voice wavering.", time: 180 },
+        { text: "The Phantom Touch: Apply **[Blindfolds]**. Master, move your hands close to the sub's skin without touching, then suddenly use **[Impact]**. Success: No flinching at the 'near' touches.", time: 300 },
+        { text: "The Sensory Crossover: Master, use **[Sensation]** (rough) on 'soft' areas and **[Sensation]** (soft) on 'hard' areas. Success: Submissive must describe the 'wrongness' of the sensations.", time: 240 },
+        { text: "The Breathless Maze: Apply **[Gags]**. Master, lead the bound/blindfolded submissive through a 'maze' of furniture. Success: No bumping into any objects.", time: 480 },
+        { text: "The Skin Crawl: Master, use **[Sensation]** (feathers) to tickle the submissive while they are bound in **[Restraints]**. Success: No laughing or wiggling for 3 minutes.", time: 180 },
+        { text: "The Heartbeat Monitor: Master, place your ear to the sub's chest while using **[Toys]**. Success: Submissive must try to slow their heart rate using only their mind.", time: 360 },
+        { text: "The 10-Second Blitz: Master, use every tool in the kit for 10 seconds each in a random order. Success: Submissive must state which tool was used immediately after each swap.", time: 200 },
+        { text: "The Sensory Anchor: Master, tie a single finger to a fixed point using **[Restraints]**. Use **[Impact]** on the rest of the body. Success: Do not pull the anchored finger.", time: 240 },
+        { text: "The Hot/Cold Spine: Master, run **[Sensation]** (ice) down the spine followed immediately by **[Sensation]** (warm hands). Success: Submissive must not shiver.", time: 180 },
+        { text: "The Double Vibration: Master, use two **[Toys]** on different frequencies. Success: Submissive must 'hum' the pitch of the higher-frequency toy.", time: 240 },
+        { text: "The Blindfold Buffet: Master, place 5 items on the sub's skin. Success: Submissive must identify which one is **[Impact]**, which is **[Sensation]**, etc.", time: 300 },
+        { text: "The Pressure Point: Master, apply heavy pressure with your palm while using **[Sensation]** (ice) around the edges of your hand. Success: Focus on the pressure, ignore the cold.", time: 180 },
+        { text: "The Counting Gag: Submissive, wear **[Gags]**. Master strikes **[Impact]**. Success: Submissive must muffle-count the strikes. Master must be able to understand the numbers.", time: 240 },
+        { text: "The Flutter Overload: Master, use **[Sensation]** (fur) very quickly all over the body while the submissive is in a 'Hogtie'. Success: No 'sensory break' or safe-wording.", time: 300 },
+        { text: "The Auditory Tease: Master, whisper graphic descriptions while using **[Toys]** on low. Success: Submissive must repeat the Master's words exactly.", time: 360 },
+        { text: "The Sensation Bridge: Master, use **[Restraints]** to connect two body parts, then use **[Impact]** on the rope itself. Success: Describe how the vibration travels.", time: 240 },
+        { text: "The Balance Beam Overload: Submissive stands on a line. Master uses **[Sensation]** (ice) on the neck. Success: Walk the line without looking down or stepping off.", time: 180 },
+        { text: "The Weighted Crawl: Master, tie the kit to the sub's back. Success: Submissive must crawl to the Master without the tools clattering or falling.", time: 300 },
+        { text: "The Mirroring Senses: Master, do to yourself what you do to the sub. Success: Submissive must describe the Master's reaction while experiencing their own.", time: 420 },
+        { text: "The Flickering Light: (If possible) Use a strobe or flickering light. Master uses **[Impact]**. Success: Submissive must only move during the 'dark' moments.", time: 240 },
+        { text: "The Scented Bind: Apply **[Blindfolds]**. Master uses 3 different scented oils/items. Success: Submissive must associate each scent with a different tool from the kit.", time: 300 },
+        { text: "The Muscle Memory: Master moves the sub's arm in a specific pattern. Success: Bound submissive must repeat the pattern 5 times perfectly while **[Toys]** are active.", time: 240 },
+        { text: "The Temperature Puzzle: Master, place 3 cups of water (Hot, Cold, Room Temp). Success: Blindfolded submissive must dip a toe in and identify each.", time: 180 },
+        { text: "The Vibration Climb: Master, move **[Toys]** from feet to head slowly. Success: Submissive must 'narrate' the journey of the sensation through their joints.", time: 300 },
+        { text: "The Tightrope Breath: Master, tighten **[Restraints]** around the ribs. Success: Submissive must sing or hum a continuous note for 20 seconds.", time: 120 },
+        { text: "The Touch-Type: Master 'writes' letters on the sub's back. Success: Submissive must spell out the word the Master is drawing.", time: 240 },
+        { text: "The 360 Degree Trial: Submissive sits in the center of the room. Master circles them, using **[Impact]** and **[Sensation]** unpredictably. Success: Total mental presence.", time: 480 },
+        { text: "The Gilded Overload: Master, use everything. **[Blindfolds]**, **[Gags]**, **[Restraints]**, and **[Toys]**. Success: Submissive must endure 5 minutes of 'Total Capture'.", time: 300 },
+        { text: "The Sensory Peak: Master, use **[Toys]** to bring the sub to the brink, then suddenly swap for **[Sensation]** (ice). Success: No 'accidental' climax during the shock.", time: 360 },
+        { text: "The Silent Penance: Master, use **[Impact]** 20 times. Submissive must not make a sound, even a breathy one. Success: Perfect silence.", time: 300 },
+        { text: "The Sensory Echo: Master strikes **[Impact]**, then submissive must immediately stroke the same spot with **[Sensation]** (soft). Success: No missing the spot.", time: 240 },
+        { text: "The Dual-Gag Trial: Apply **[Gags]** and then wrap **[Restraints]** over the mouth. Success: Breathe through the nose calmly for 5 minutes.", time: 300 },
+        { text: "The Infinite Coil: Master, wrap the sub in **[Restraints]** while **[Toys]** are active underneath the rope. Success: Endure the vibration trapped against the skin.", time: 420 },
+        { text: "The Master's Shadow: Submissive must move exactly as the Master moves, but with **[Blindfolds]** on (guided by sound). Success: Fluid movement.", time: 300 },
+        { text: "The Nerve Map: Master uses a fine point (like the tip of a tool) to find 5 'sensitive' spots. Success: Submissive must rank them 1-5 without jumping.", time: 240 },
+        { text: "The Final Short-Circuit: Master uses **[Impact]**, **[Sensation]**, and **[Toys]** all at once for 60 seconds. Success: Immediate, calm 'Thank you, Master' afterward.", time: 120 }
+    ],
+    inner: [
+    { text: "The Self-Box: Submissive, use **[Restraints]** to bind your own wrists together behind your back. You must use a slipknot you can tighten by pulling with your teeth. Success: Wrists locked tight.", time: 300 },
+    { text: "The Hug of Solitude: Submissive, wrap **[Restraints]** around your torso and arms, pinning your elbows to your sides. Success: You must not be able to lift your arms away from your ribs.", time: 360 },
+    { text: "The Crossover: Submissive, tie your left wrist to your right ankle using **[Restraints]**. Success: Maintain a 'crouched' walk for 2 minutes without falling.", time: 240 },
+    { text: "The Self-Harness: Submissive, create a 'diaper' or 'chest' harness on your own body using **[Restraints]**. Success: Master must be unable to fit more than two fingers under the rope.", time: 480 },
+    { text: "The Waist Lock: Submissive, bind your wrists to your own waist cinch using **[Restraints]**. Success: Your hands must remain at hip level for the duration.", time: 300 },
+    { text: "The Behind-Neck Bind: Submissive, bind your wrists together and loop the cord over the back of your neck. Success: Keep your hands high behind your head.", time: 240 },
+    { text: "The Finger Web: Submissive, weave a thin length of **[Restraints]** between all ten of your fingers. Success: You must not be able to spread your fingers apart.", time: 180 },
+    { text: "The Shoulder Wrap: Submissive, wrap **[Restraints]** around your upper arms until they are pressed firmly against your back. Success: Shoulders must stay 'pinned'.", time: 300 },
+    { text: "The Elbow Knot: Submissive, tie your elbows together in front of your chest. Success: You must be able to hold **[Impact]** between your bound forearms.", time: 240 },
+    { text: "The Self-Tether: Submissive, tie one wrist to a heavy piece of furniture and the other to your own ankle. Success: Stay in the 'stretched' position.", time: 360 },
+    { text: "The Muted Submission: Submissive, apply **[Gags]** to yourself and secure them as tightly as possible. Success: You must not be able to make a clear vowel sound for the duration.", time: 240 },
+    { text: "The Blindfold Shadow: Submissive, apply **[Blindfolds]** to yourself. Using only touch, find and apply **[Restraints]** to your own ankles. Success: Ankles successfully bound in the dark.", time: 360 },
+    { text: "The Self-Tease: Submissive, use **[Toys]** on yourself while Master watches. You must stop the moment the Master raises a hand. Success: Absolute obedience to the visual cue.", time: 300 },
+    { text: "The Ice Endurance: Submissive, hold **[Sensation]** (ice) against your own inner thigh. You are not allowed to move it until it melts. Success: No flinching or shifting.", time: 240 },
+    { text: "The Wax Mark: Submissive, drip **[Sensation]** (warm wax) onto your own stomach in a straight line. Success: The line must be perfectly straight despite the heat.", time: 180 },
+    { text: "The Tactile Map: Submissive, apply **[Blindfolds]**. Use **[Sensation]** (fur/silk) to stroke your own body, naming every muscle group you touch. Success: No missed muscle groups.", time: 300 },
+    { text: "The Breath Lock: Submissive, apply **[Gags]** and then use **[Restraints]** to tie a line from the gag to your wrists. Success: Moving your hands must pull on the gag.", time: 360 },
+    { text: "The Vibration Anchor: Submissive, secure **[Toys]** to your own body using **[Restraints]**. Success: The toy must remain active and in place while you perform 10 squats.", time: 240 },
+    { text: "The Double Deprivation: Submissive, apply **[Blindfolds]** and **[Gags]** to yourself. Success: Remain perfectly still and silent until Master touches your shoulder.", time: 420 },
+    { text: "The Sensation Brush: Submissive, use **[Sensation]** to brush over your own skin. You must follow the exact path the Master describes verbally. Success: Perfect tracking.", time: 240 },
+    { text: "The Serpent's Coil: Submissive, wrap **[Restraints]** around your own legs from ankles to knees. Success: You must be able to 'crawl' like a snake to the Master's feet.", time: 300 },
+    { text: "The Toe Tie: Submissive, tie your own big toes together using a short length of **[Restraints]**. Success: Walk across the room without snapping the cord.", time: 240 },
+    { text: "The Knee Lock: Submissive, bind your own knees together while in a kneeling position. Success: You must be unable to stand up without Master's help.", time: 300 },
+    { text: "The Heel-to-Glute: Submissive, tie your own right ankle to your waist cinch so the heel is pressed to your glute. Success: Balance on one leg for 60 seconds.", time: 180 },
+    { text: "The Spread-Eagle Prep: Submissive, tie each of your ankles to a separate chair leg. Success: Stay in the wide-spread position while Master uses **[Impact]**.", time: 420 },
+    { text: "The Hop-Tie: Submissive, bind your ankles together with only 2 inches of slack. Success: Hop in a circle around the Master 5 times.", time: 180 },
+    { text: "The Floor Anchor: Submissive, tie your own wrists to your ankles in a 'ball' shape. Success: Roll onto your side and stay there without struggling.", time: 300 },
+    { text: "The Thigh Cinch: Submissive, wrap **[Restraints]** around your upper thighs as tight as possible. Success: Your stride must be shortened to less than 6 inches.", time: 240 },
+    { text: "The Shin Bind: Submissive, tie a length of **[Restraints]** tightly around your shins. Success: You must be able to feel the rope with every step you take.", time: 180 },
+    { text: "The Long-Line Self: Submissive, tie a 6-foot length of **[Restraints]** to your own neck and the other end to your ankles. Success: You must keep your back arched to keep the line taut.", time: 360 },
+    { text: "The Self-Correction: Submissive, deliver 5 strikes of **[Impact]** to your own thigh. Success: The strikes must be firm enough to leave a 'glow' that Master approves of.", time: 120 },
+    { text: "The Counting Gag: Submissive, apply **[Gags]**. You must count from 1 to 50 in your head, nodding every 10 numbers. Success: Master times you for accuracy.", time: 180 },
+    { text: "The Steady Hand: Submissive, hold **[Impact]** at arm's length. Success: No shaking or dipping of the tool for 2 full minutes.", time: 120 },
+    { text: "The Pattern Drip: Submissive, use **[Sensation]** (wax) to drip 5 'dots' on each arm. Success: The dots must be symmetrical on both sides.", time: 240 },
+    { text: "The Restraint Knot-Work: Submissive, tie 10 knots in a piece of **[Restraints]** using only one hand. Success: All knots must be distinct and tight.", time: 300 },
+    { text: "The Blindfold Sorter: Master places 3 items from the kit in front of you. Submissive, apply **[Blindfolds]** and identify them by touch. Success: 3/3 correct.", time: 180 },
+    { text: "The Toy Edge: Submissive, use **[Toys]** on yourself to reach the '9/10' brink. Success: You must stop yourself without Master saying a word.", time: 360 },
+    { text: "The Mirror Command: Submissive, look in the mirror and apply **[Restraints]** to your neck. Success: The knot must be centered and aesthetically pleasing.", time: 240 },
+    { text: "The Vocal Silence: Submissive, apply **[Gags]**. You must 'describe' your current feeling using only hand gestures. Success: Master must understand your 'message'.", time: 180 },
+    { text: "The Inner Pillar: Submissive, stand at attention with **[Restraints]** draped over your head. Success: Do not let the rope fall for 3 minutes.", time: 180 },
+    { text: "The Mummy Wrap: Submissive, wrap as much **[Restraints]** as possible around your own torso and arms. Success: You must look like a 'cocoon' of rope.", time: 600 },
+    { text: "The Blind Self-Gag: Submissive, apply **[Blindfolds]** first, then find and apply **[Gags]**. Success: Secure fit without being able to see.", time: 240 },
+    { text: "The Final Knot: Submissive, tie your wrists behind your back using a 'karabiner' or a pre-set loop. Success: You are now fully dependent on Master for release.", time: 300 },
+    { text: "The Sensory Cage: Submissive, apply **[Blindfolds]**, **[Gags]**, and **[Restraints]** (ankles) to yourself. Success: Complete the 'set' in under 3 minutes.", time: 180 },
+    { text: "The Toy Sentinel: Submissive, place **[Toys]** on a table. You must lean your body against the vibration without using hands. Success: Maintain contact for 3 minutes.", time: 180 },
+    { text: "The Self-Restricted Walk: Submissive, bind your own wrists to your knees. Success: Walk 5 steps in this 'compact' position.", time: 240 },
+    { text: "The Weighted Inner: Submissive, hold **[Impact]** in your mouth (by the handle) while your hands are bound. Success: Do not drop the tool.", time: 180 },
+    { text: "The Labyrinth: Submissive, weave **[Restraints]** through your belt loops and around your thighs. Success: A complex web that hinders all fast movement.", time: 420 },
+    { text: "The Cold Mirror: Submissive, hold **[Sensation]** (ice) to your lips while watching yourself in the mirror. Success: No pulling away from the cold.", time: 120 },
+    { text: "The Submission Absolute: Submissive, perform all the above: apply **[Blindfolds]**, **[Gags]**, and **[Restraints]** until you are a 'Gilded Cage' of your own making.", time: 600 }
+        ],
+    punish: [
+        { text: "The Rhythm of Regret: Justice: 10 strikes with **[Impact]**, slow and heavy. Mercy: Master uses **[Sensation]** (warm hands) to massage the area for 2 minutes. Success: No flinching during Justice.", time: 300 },
+        { text: "The Cold Correction: Justice: Apply **[Sensation]** (ice) to the inner thighs for 60 seconds. Mercy: Master uses their own body heat to warm the skin back to temperature. Success: Maintain eye contact.", time: 240 },
+        { text: "The Sting and Silk: Justice: 5 sharp snaps of **[Impact]**. Mercy: Master strokes the marks with **[Sensation]** (silk or fur). Success: The submissive must thank the Master for both the sting and the silk.", time: 180 },
+        { text: "The Weighted Penance: Justice: Submissive holds the kit (or a heavy object) above their head. Mercy: Master removes the weight and cradles the submissive’s head in their lap. Success: Hold the weight until the timer dings.", time: 300 },
+        { text: "The Counting Trial: Justice: Master strikes **[Impact]**. Submissive must count 'One, Master... Two, Master...' through **[Gags]**. Mercy: Master removes the gag and kisses the submissive deeply. Success: Accurate counting.", time: 240 },
+        { text: "The Corner of Reflection: Justice: Submissive stands in the corner, nose to the wall, wrists bound in **[Restraints]**. Mercy: Master releases them and performs a 'Worship' session. Success: No moving from the corner.", time: 420 },
+        { text: "The Marking: Justice: Master uses **[Sensation]** (warm wax) to mark 3 spots on the body. Mercy: Master carefully peels the wax off and licks the skin clean. Success: Stay perfectly still during the drip.", time: 300 },
+        { text: "The Static Hold: Justice: Submissive must hold a deep squat. Master uses **[Impact]** lightly on the calves. Mercy: Master helps the submissive lie down and stretches their legs. Success: Hold the squat.", time: 240 },
+        { text: "The Sensory Shield: Justice: Apply **[Blindfolds]**. Master uses 3 unpredictable strikes of **[Impact]**. Mercy: Master removes the blindfold and offers a long, silent embrace. Success: No gasping or pulling away.", time: 180 },
+        { text: "The Double Justice: Justice: 10 strikes of **[Impact]** followed by 10 seconds of **[Toys]** on high. Mercy: 2 minutes of quiet 'Cuddle Time'. Success: Absolute silence during the Justice phase.", time: 300 },
+        { text: "The Bound Kneel: Justice: Bind the submissive's wrists to their ankles with **[Restraints]**. Mercy: Master feeds the submissive small sips of water or a treat. Success: Compliance with the awkward binding.", time: 360 },
+        { text: "The Muted Plea: Justice: Apply **[Gags]** tightly. Master describes a 'fault' the submissive has shown. Mercy: Master removes the gag and allows the submissive to whisper one 'promise' of better behavior. Success: Maintain the gag.", time: 300 },
+        { text: "The Wall of Discipline: Justice: Submissive leans against the wall, feet far back. Master uses **[Impact]** on the lower back. Mercy: Master performs a 'Feather Touch' with **[Sensation]**. Success: Keep the feet planted.", time: 240 },
+        { text: "The Obedience Hold: Justice: Master holds the submissive in a firm 'Control Grip'. Mercy: Master transitions the grip into a 'Protective Cradle'. Success: Do not struggle against the Master's strength.", time: 180 },
+        { text: "The Locked Gaze: Justice: Submissive must kneel and look at the Master's feet. Master uses **[Impact]** on the shoulders. Mercy: Master lifts the submissive's chin and gives them a 'Validation Kiss'. Success: Eyes down.", time: 240 },
+        { text: "The Tethered Penance: Justice: Bind the submissive to a fixed point with **[Restraints]**. Mercy: Master joins them in the 'Cage' for a moment of intimacy. Success: Stay bound without pulling.", time: 420 },
+        { text: "The Sensory Overload Correction: Justice: Master uses **[Toys]** and **[Impact]** at the same time. Mercy: Master uses **[Blindfolds]** to give the submissive 'Dark Peace'. Success: Endure the overload.", time: 300 },
+        { text: "The Cold Shoulder: Justice: Master ignores the submissive for 2 minutes while they are bound. Mercy: Master returns with high-intensity affection. Success: No begging for attention during the silence.", time: 180 },
+        { text: "The Formal Strike: Justice: 15 formal lashes with **[Impact]**. Mercy: Master 'cleanses' the area with a cool damp cloth. Success: Maintain a 'Soldier's Posture'.", time: 360 },
+        { text: "The Mercy Brink: Justice: Bring the submissive to the edge with **[Toys]**. Mercy: Stop and allow them to climax only after a 'Mercy Request'. Success: No 'accidental' peaks.", time: 480 },
+        { text: "The Hands-Behind-Head: Justice: Hold position while Master uses **[Sensation]** (friction) on the ribs. Mercy: Master applys soothing lotion or oil. Success: Elbows back.", time: 240 },
+        { text: "The Casket: Justice: Submissive lies under a heavy blanket (or the Master's body). Mercy: Master 'releases' them into the light and fresh air. Success: No struggling against the weight.", time: 300 },
+        { text: "The Toe-Touch: Justice: Submissive must touch their toes. Master uses **[Impact]** on the glutes. Mercy: Master massages the hamstrings. Success: No bending the knees.", time: 180 },
+        { text: "The Silent Vigil: Justice: Bind wrists with **[Restraints]**. Submissive must watch the Master enjoy a snack/drink. Mercy: Master shares the final bite/sip with the submissive. Success: No noise.", time: 420 },
+        { text: "The Impact Map: Justice: Master 'draws' a pattern on the skin with light **[Impact]**. Mercy: Master 'erases' the pattern with kisses. Success: Submissive must guess the pattern (Square, Circle, X).", time: 240 },
+        { text: "The Finger-Bind: Justice: Bind each finger individually with **[Restraints]**. Mercy: Master unties them slowly, kissing each fingertip. Success: No pulling the hands away.", time: 360 },
+        { text: "The Humiliation Lite: Justice: Submissive must wear **[Gags]** and 'bark' or 'meow'. Mercy: Master praises them for being a 'good pet'. Success: Full commitment to the role.", time: 180 },
+        { text: "The Cold Water Penance: Justice: Master drips cold water on the spine. Mercy: Master uses a warm hair dryer or towel. Success: No shivering or jumping.", time: 240 },
+        { text: "The Master's Footstool: Justice: Submissive acts as a footrest. Mercy: Master uses their feet to 'caress' the submissive's chest. Success: Remain a sturdy 'piece of furniture'.", time: 300 },
+        { text: "The Verbal Correction: Justice: Submissive must repeat 'I am yours to correct' 20 times. Mercy: Master responds 'And I am yours to protect'. Success: Clear, steady voice.", time: 180 },
+        { text: "The Mirror of Mercy: Justice: Submissive looks in a mirror and lists 3 things they want to improve. Mercy: Master tells the submissive 3 things they love about them. Success: Honesty.", time: 300 },
+        { text: "The Waiting Room: Justice: Master leaves the room for 3 minutes. Mercy: Master returns with a gift (toy or treat). Success: Submissive must be in the exact same spot/pose.", time: 240 },
+        { text: "The Impact Choice: Justice: Submissive chooses between 10 strikes of **[Impact]** or 2 minutes of **[Gags]**. Mercy: Master provides the opposite as a 'comfort'. Success: Making the choice quickly.", time: 180 },
+        { text: "The Sensation Blind: Justice: Apply **[Blindfolds]**. Master uses a 'scary' sound but a 'soft' touch with **[Sensation]**. Mercy: Master reveals the item. Success: No flinching at the sound.", time: 240 },
+        { text: "The Breath Exchange: Justice: Master 'steals' the submissive's breath with a long, heavy kiss. Mercy: Master gives the submissive 'Air' by fanning them. Success: Complete surrender.", time: 120 },
+        { text: "The Heartbeat Justice: Justice: Master uses **[Toys]** until the heart rate is high. Mercy: Master holds the submissive until the heart rate is low. Success: Calming down on command.", time: 420 },
+        { text: "The Rope Mark Justice: Justice: Master ties **[Restraints]** tight enough to leave temporary marks. Mercy: Master 'heals' the marks with **[Sensation]** (ice). Success: No complaining about the 'bite'.", time: 300 },
+        { text: "The Justice Nap: Justice: Submissive must lie still for 5 minutes in **[Blindfolds]**. Mercy: Master wakes them with gentle oral/manual play. Success: Do not fall asleep or move.", time: 480 },
+        { text: "The Shadow Justice: Justice: Master uses **[Impact]** on the submissive's shadow (or very close to the skin without touching). Mercy: Master follows with a real, firm embrace. Success: No flinching.", time: 180 },
+        { text: "The Final Forgiveness: Justice: One final, heavy strike of **[Impact]**. Mercy: A full 5-minute session of whatever the submissive finds most comforting. Success: Total release of tension.", time: 600 },
+        { text: "The Tickle Justice: Justice: 1 minute of light, annoying **[Sensation]**. Mercy: 2 minutes of deep, grounding pressure. Success: Do not 'escape' the tickle.", time: 180 },
+        { text: "The Gravity Mercy: Justice: Master stands over the submissive. Mercy: Master pulls the submissive up to their level for a 'King/Queen's Kiss'. Success: Maintain a submissive 'crouch' until pulled up.", time: 240 },
+        { text: "The Locked Mercy: Justice: Submissive is bound in **[Restraints]**. Mercy: Master remains in physical contact (touching) for the entire duration of the bind. Success: No pulling away.", time: 480 },
+        { text: "The Impact Symphony: Justice: Master uses **[Impact]** to play a 'tune' on the skin. Mercy: Master hums that tune while cuddling. Success: Identify the 'tempo'.", time: 300 },
+        { text: "The Sensation Trial: Justice: Master uses 'unpleasant' **[Sensation]** (tickling/cold). Mercy: Master uses 'pleasant' **[Sensation]** (soft/warm). Success: Endure the 'bad' to get the 'good'.", time: 360 },
+        { text: "The Master's Cloak: Justice: Submissive is left 'exposed'. Mercy: Master covers them with their own clothing/robe. Success: No covering up with hands.", time: 240 },
+        { text: "The Justice Count: Justice: Submissive counts the seconds of **[Toys]** application. Mercy: Master gives that same number of kisses. Success: Precise counting.", time: 300 },
+        { text: "The Heavy/Light: Justice: Heavy pressure with **[Impact]**. Mercy: Light as air touch with **[Sensation]**. Success: Stay focused through the transition.", time: 180 },
+        { text: "The Mercy Bath: Justice: Master uses 'messy' **[Sensation]** (oil/wax). Mercy: Master 'cleanses' the submissive with a warm towel. Success: Stay still during the 'mess'.", time: 420 },
+        { text: "The Coronation: Justice: 5 minutes of 'Hard Play'. Mercy: 10 minutes of 'Aftercare'. Success: The submissive must be completely 'subdued' by the end.", time: 900 }
+    ],
+    escape: [
+    { text: "The Blind Unweaving: Master, bind the sub's wrists in front with a complex series of loops using **[Restraints]**. Apply **[Blindfolds]**. Success: Submissive must untie themselves by touch alone.", time: 300 },
+    { text: "Thumb Screw Logic: Master, tapes the sub's fingers together tightly then tapes their wrists to their ankles. Apply **[Blindfolds]** and Gag **[Gags}. Success: Submissive must escape.", time: 240 },
+    { text: "The Slipknot Gamble: Master, tie a series of 5 slipknots along the sub's arms with **[Restraints]**. Success: Submissive must find and pull the single 'master' thread to collapse the binding.", time: 180 },
+    { text: "Friction Escape: Master, bind the sub's ankles and wrists together (frog style). Success: Submissive must wriggle 3 meters across the floor to touch the Master's foot.", time: 300 },
+    { text: "The Behind-Back Puzzle: Bind wrists behind the back with **[Restraints]**. Success: Submissive must move the binding from behind their back to the front by stepping through their arms.", time: 420 },
+    { text: "The Knot Count: Master, tie 10 random knots in a length of **[Restraints]** and hand it to the bound sub. Success: Submissive must untie every knot using only their teeth.", time: 360 },
+    { text: "Vertical Tension: Master, tie the sub's wrists to a point above their head. Success: Submissive must use their toes to untie the bottom-most knot of the binding.", time: 480 },
+    { text: "The Crossover: Bind the left wrist to the right ankle. Success: Submissive must navigate an 'obstacle' (like climbing onto the bed) without falling or losing balance.", time: 300 },
+    { text: "The Spider Web: Master, create a 'web' across a doorway using **[Restraints]**. Success: Submissive must pass through the web without touching any of the cords.", time: 360 },
+    { text: "The Single-Handed Save: Bind one of the sub's hands to their own thigh. Success: Using only the free hand, the submissive must untie the bound one.", time: 240 },
+    { text: "The Guided Mute: Apply **[Blindfolds]** and **[Gags]**. Bind wrists. Success: Submissive must follow the sound of the Master's snapping fingers to find a hidden key or object.", time: 300 },
+    { text: "The Cold Search: Apply **[Blindfolds]**. Master places **[Sensation]** (ice) on a body part. Success: Submissive must find the ice and move it to a different surface using no hands.", time: 180 },
+    { text: "The Tactile Key: Master places 3 different items from **[Sensation]** on a table. Success: Bound and blindfolded sub must identify the specific 'escape' item by scent or touch.", time: 240 },
+    { text: "The Quiet Wriggle: Bind the sub with **[Restraints]** and attach small bells (or noisy items). Success: Submissive must escape the binds without making a single sound.", time: 420 },
+    { text: "Shadow Boxing: Bind wrists together. Success: Submissive must use their bound hands to shadow-box and knock a small object off the Master's shoulder.", time: 120 },
+    { text: "The Breathless Unbind: Master, use **[Restraints]** to bind the sub's chest. Success: Submissive must expand their lungs rhythmically to loosen the cord enough to slip out.", time: 300 },
+    { text: "The Scent Trail: Apply **[Blindfolds]**. Success: Submissive must crawl through the room to find a cloth scented with the Master's cologne/perfume while bound.", time: 300 },
+    { text: "Vibrating Compass: Master hides **[Toys]** (vibrating) in the room. Success: Bound/blindfolded sub must find the toy by following the sound/vibration on the floor.", time: 240 },
+    { text: "The Weight of Silence: Bind submissive to a chair. Place **[Impact]** on their lap. Success: Submissive must stand up and escape the chair without the tool falling.", time: 360 },
+    { text: "The Distraction Trial: Master uses **[Sensation]** on the sub's neck. Success: Submissive must untie a complex knot in their lap without flinching or stopping.", time: 300 },
+    { text: "The Toy Toggle: Master, secure **[Toys]** to the sub's body and turn it to MAX. Success: Submissive must reach the 'off' switch using only their chin or nose.", time: 180 },
+    { text: "The Impact Reach: Master places **[Impact]** just out of reach. Success: Bound submissive must use a length of **[Restraints]** like a lasso to retrieve the tool.", time: 300 },
+    { text: "Gagged Communication: Apply **[Gags]**. Success: Submissive must use their bound hands to write a specific word on the Master's back that the Master can 'read'.", time: 240 },
+    { text: "The Friction Burn: Master, wrap **[Restraints]** around the sub's waist. Success: Submissive must rotate their body to 'unwind' the rope while Master holds the end.", time: 180 },
+    { text: "The Toy Balance: Place **[Toys]** (active) on the sub's flat palm. Success: Submissive must stand up from the floor without the toy falling off.", time: 120 },
+    { text: "The Restraint Ladder: Master ties 3 loops of **[Restraints]**. Success: Submissive must use their feet to hook and move the loops into a specific pile.", time: 240 },
+    { text: "The Soft Escape: Master covers the sub in blankets/pillows and binds the 'bundle'. Success: Submissive must burrow out of the soft prison without using hands.", time: 360 },
+    { text: "The Sensation Map: Apply **[Blindfolds]**. Master touches sub with **[Sensation]**. Success: Submissive must find that exact item in the room while bound.", time: 300 },
+    { text: "The Paddle Bridge: Master holds **[Impact]** out. Success: Submissive must use their bound hands to 'climb' the tool to reach the Master's grip.", time: 180 },
+    { text: "The Locked Toy: Secure **[Toys]** inside the sub's underwear. Success: Submissive must use wriggling motions to 'eject' the toy without using hands.", time: 240 },
+    { text: "The Low Bar: Master holds **[Restraints]** 2 feet off the floor. Success: Bound submissive must shimmy under the rope without touching it.", time: 240 },
+    { text: "The Kneeling Wriggle: Bind knees together. Success: Submissive must move from a kneeling position to a standing position without using their hands for balance.", time: 180 },
+    { text: "The Serpent's Coil: Master wraps the sub's torso in **[Restraints]**. Success: Submissive must 'shed' the rope like a skin by undulating their muscles.", time: 300 },
+    { text: "The One-Legged Escape: Bind one ankle to the opposite wrist. Success: Submissive must hop to the Master and retrieve a 'kiss' to be freed.", time: 180 },
+    { text: "The Bound Arch: Submissive lies on their back, wrists bound to ankles. Success: Submissive must arch their back to lift their hips off the floor for 60 seconds.", time: 120 },
+    { text: "The Chair Pivot: Bind submissive to a swivel chair. Success: Submissive must use leg momentum to spin the chair 10 times and then stop exactly facing the Master.", time: 180 },
+    { text: "The Rope Step: Master lays a line of **[Restraints]** on the floor. Success: Bound submissive must walk the line heel-to-toe without 'falling' off.", time: 240 },
+    { text: "The Turtle: Submissive is bound in a ball (knees to chest). Success: Submissive must roll from their back to their stomach and back again 3 times.", time: 300 },
+    { text: "The Standing Knot: Master binds the sub's wrists behind a chair back. Success: Submissive must stand up, lifting the chair with them, and walk 3 steps.", time: 240 },
+    { text: "The Floor Sweep: Bind wrists together. Success: Submissive must use a cloth held in their bound hands to 'clean' a circle around the Master's feet.", time: 180 },
+    { text: "The Teeth Retrieval: Master places a length of **[Restraints]** in a bowl of water (or ice). Success: Bound submissive must retrieve it using only their teeth.", time: 180 },
+    { text: "The Mirror Escape: Apply **[Blindfolds]**. Success: Submissive must describe the Master’s current 'pose' correctly by listening to their movements.", time: 240 },
+    { text: "The Counting Bind: Master hits **[Impact]** against the floor. Success: Bound submissive must untie one knot for every 3 strikes they hear.", time: 300 },
+    { text: "The Gravity Knot: Master hangs a weight from the **[Restraints]** binding the sub's wrists. Success: Submissive must untie themselves without the weight hitting the floor.", time: 420 },
+    { text: "The Blindfold Handshake: Both players are blindfolded. Success: Bound submissive must find the Master’s hand and successfully 'shake' it.", time: 180 },
+    { text: "The Toe Tie: Master binds the sub's big toes together. Success: Submissive must move across the room without breaking the thin thread/cord.", time: 300 },
+    { text: "The Pulse Match: Master uses **[Toys]** on the sub. Success: Submissive must untie their wrists in rhythm with the vibration pulses.", time: 240 },
+    { text: "The Master's Silhouette: Bind sub against a wall. Success: Submissive must wriggle free while leaving the **[Restraints]** hanging in the shape of their body.", time: 480 },
+    { text: "The Candlelight Escape: (Safety: Use LED candle). Success: Bound submissive must blow out a candle across the room while their legs are bound.", time: 180 },
+    { text: "The Final Release: Master binds the submissive's entire body. Success: Submissive must find the 'weak point' the Master purposely left in the binding.", time: 600 }
+    ]
+};
+
+window.onload = function() {
+    const saved = localStorage.getItem('cage_legacy_v4');
+    if(saved) {
+        const loaded = JSON.parse(saved);
+        state = {...state, ...loaded};
+        document.getElementById('p1-name').value = state.p1.name;
+        document.getElementById('p1-gender').value = state.p1.gender;
+        document.getElementById('p2-name').value = state.p2.name;
+        document.getElementById('p2-gender').value = state.p2.gender;
+        document.getElementById('max-rounds').value = state.maxRounds;
+    }
+};
+
+function saveAll() { localStorage.setItem('cage_legacy_v4', JSON.stringify(state)); }
+
+function goToInventory() {
+    state.p1.name = document.getElementById('p1-name').value || "Player 1";
+    state.p2.name = document.getElementById('p2-name').value || "Player 2";
+    state.maxRounds = parseInt(document.getElementById('max-rounds').value) || 15;
+    saveAll();
+    renderInv();
+    document.getElementById('setup-page').classList.remove('active');
+    document.getElementById('inventory-page').classList.add('active');
+}
+
+function renderInv() {
+    const container = document.getElementById('inventory-container');
+    container.innerHTML = "";
+    for(let cat in state.inventory) {
+        let h = `<div class="item-list"><h3>${catNames[cat]}</h3><div id="list-${cat}">`;
+        state.inventory[cat].forEach(i => {
+            h += `<div class="inventory-item"><span>${i}</span><span class="delete-btn" onclick="removeItem('${cat}', '${i}')">×</span></div>`;
+        });
+        h += `</div><input type="text" id="add-${cat}" placeholder="Add..." onkeydown="if(event.key==='Enter') addItem('${cat}')"></div>`;
+        container.innerHTML += h;
+    }
+}
+
+function addItem(cat) {
+    let input = document.getElementById(`add-${cat}`);
+    if(!input.value) return;
+    state.inventory[cat].push(input.value);
+    input.value = "";
+    saveAll();
+    renderInv();
+}
+
+function removeItem(cat, val) {
+    state.inventory[cat] = state.inventory[cat].filter(i => i !== val);
+    saveAll();
+    renderInv();
+}
+
+function startGame() {
+    state.masterIdx = Math.random() > 0.5 ? 0 : 1;
+    state.subIdx = state.masterIdx === 0 ? 1 : 0;
+    const rt = document.getElementById('realm-toggles');
+    rt.innerHTML = "";
+    for(let key in realmNames) {
+        rt.innerHTML += `<label><input type="checkbox" class="realm-box" value="${key}" checked> ${realmNames[key]}</label>`;
+    }
+    updateUI();
+    document.getElementById('inventory-page').classList.remove('active');
+    document.getElementById('game-page').classList.add('active');
+}
+
+function updateUI() {
+    document.getElementById('round-display').innerText = `Round: ${state.currentRound}/${state.maxRounds}`;
+    document.getElementById('score-display').innerText = `${state.p1.name}: ${state.p1.score} | ${state.p2.name}: ${state.p2.score}`;
+    const master = state.masterIdx === 0 ? state.p1 : state.p2;
+    const sub = state.subIdx === 0 ? state.p1 : state.p2;
+    document.getElementById('role-display').innerText = `Master: ${master.name} | Sub: ${sub.name}`;
+}
+
+function drawTask() {
+    clearInterval(state.timerInterval);
+    const realms = Array.from(document.querySelectorAll('.realm-box:checked')).map(b => b.value);
+    if(realms.length === 0) return alert("Select a realm.");
+    const r = realms[Math.floor(Math.random() * realms.length)];
+    const pool = taskDatabase[r];
+    let t = pool[Math.floor(Math.random() * pool.length)];
+    
+    let processedText = t.text;
+    for(let cat in catNames) {
+        const items = state.inventory[cat];
+        const item = items[Math.floor(Math.random() * items.length)];
+        // Global replace for both **[Cat]** and [Cat]
+        const regex = new RegExp(`\\*?\\*\\[${cat}\\]\\*?\\*|\\[${cat}\\]`, 'gi');
+        processedText = processedText.replace(regex, `<b style="color:var(--gold)">${item}</b>`);
+    }
+
+    document.getElementById('task-desc').innerHTML = processedText;
+    document.getElementById('timer-display').innerText = format(t.time);
+    state.activeTime = t.time;
+    document.getElementById('master-choice-ui').style.display = 'none';
+    document.getElementById('task-ui').style.display = 'block';
+    document.getElementById('start-btn').style.display = 'block';
+    document.getElementById('resolve-controls').style.display = 'none';
+}
+
+function startTimer() {
+    document.getElementById('start-btn').style.display = 'none';
+    document.getElementById('resolve-controls').style.display = 'flex';
+    state.timerInterval = setInterval(() => {
+        state.activeTime--;
+        document.getElementById('timer-display').innerText = format(state.activeTime);
+        if(state.activeTime <= 0) { 
+            clearInterval(state.timerInterval); 
+            document.getElementById('snd-whip').play(); 
+        }
+    }, 1000);
+}
+
+function resolveTask(success) {
+    clearInterval(state.timerInterval);
+    if(success) {
+        if(state.subIdx === 0) state.p1.score++; else state.p2.score++;
+        let t = state.masterIdx; state.masterIdx = state.subIdx; state.subIdx = t;
+    } else { 
+        if(state.subIdx === 0) state.p1.score--; else state.p2.score--; 
+    }
+    state.currentRound++;
+    if(state.currentRound > state.maxRounds) finish();
+    else { 
+        document.getElementById('task-ui').style.display = 'none'; 
+        document.getElementById('master-choice-ui').style.display = 'block'; 
+        updateUI(); 
+    }
+}
+
+function triggerSafeword() { if(confirm("Safeword triggered. Reset session?")) location.reload(); }
+
+function finish() {
+    document.getElementById('game-page').style.display = 'none';
+    document.getElementById('final-page').classList.add('active');
+    const winner = state.p1.score >= state.p2.score ? state.p1 : state.p2;
+    document.getElementById('winner-announcement').innerText = `${winner.name.toUpperCase()} IS THE VICTOR`;
+    
+    let prize = grandPrizes[Math.floor(Math.random() * grandPrizes.length)];
+    let pText = prize.text;
+    for(let cat in catNames) {
+        const items = state.inventory[cat];
+        const item = items[Math.floor(Math.random() * items.length)];
+        const regex = new RegExp(`\\*?\\*\\[${cat}\\]\\*?\\*|\\[${cat}\\]`, 'gi');
+        pText = pText.replace(regex, `<b style="color:var(--gold)">${item}</b>`);
+    }
+    document.getElementById('grand-prize-desc').innerHTML = `<h3>${prize.title}</h3>` + pText;
+}
+
+function resetGame() {
+    state.currentRound = 1;
+    state.p1.score = 0;
+    state.p2.score = 0;
+    saveAll();
+    location.reload();
+}
+
+function format(s) { 
+    if(s < 0) s = 0;
+    let m = Math.floor(s/60); 
+    let rs = s%60; 
+    return `${m}:${rs < 10 ? '0'+rs : rs}`; 
+}
+</script>
+</body>
+</html>
